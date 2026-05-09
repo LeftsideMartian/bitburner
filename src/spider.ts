@@ -1,8 +1,25 @@
 import { NS } from '@ns';
-import { programs } from './programs';
+import { getPrograms } from './programs';
+import { homeNode, serversFileName } from './constants';
 
 export async function main(ns: NS) {
-    let currentNode = 'home';
+    updateServersFile(ns);
+}
+
+export function updateServersFile(ns: NS): void {
+    ns.write(
+        serversFileName,
+        scrapeNetwork(ns)
+            .filter(node => isNodeHackable(ns, node))
+            .join('\n'),
+        'w'
+    );
+
+    ns.tprint('Spider scraped the network for all servers, and wrote data to servers.txt.');
+}
+
+export function scrapeNetwork(ns: NS): string[] {
+    let currentNode = homeNode;
     const nodes: string[] = ns.scan();
     const results: string[] = [];
 
@@ -20,13 +37,7 @@ export async function main(ns: NS) {
         results.push(...scanResults);
     }
 
-    ns.write(
-        'servers.txt',
-        [...new Set(results)].filter(node => isNodeHackable(ns, node)).join('\n'),
-        'w'
-    );
-
-    ns.tprint('Spider scraped the network for all servers, and wrote data to servers.txt.');
+    return [...new Set(results)];
 }
 
 function isNodeHackable(ns: NS, node: string): boolean {
@@ -44,16 +55,16 @@ function isNodeHackable(ns: NS, node: string): boolean {
     let ports = 0;
 
     // Attempt to run all programs
-    Object.entries(programs).forEach(([program, exe]) => {
-        if (ns.fileExists(exe, 'home')) {
-            ns.tprint('HELLO');
-            (ns[program as keyof NS] as (arg: string) => boolean)(node);
+    Object.values(getPrograms(ns)).forEach(program => {
+        if (ns.fileExists(program.exe, homeNode)) {
+            program.nsFunc(node);
             ports++;
         }
     });
 
     const areEnoughPortsOpen = ports >= ns.getServerNumPortsRequired(node);
 
+    // Ensure all hackable servers have root access
     if (areEnoughPortsOpen) {
         return ns.nuke();
     } else {
