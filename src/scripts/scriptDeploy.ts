@@ -1,27 +1,37 @@
 import { NS } from '@ns';
-import { updateServersFile } from './spider';
+import {
+    loggerScriptName,
+    workerScriptName,
+    argErrorFileName,
+    utilsFileName,
+    programsFileName,
+    constantsFileName,
+} from '/utils/constants';
+import { getExternalServersList } from '/utils/utils';
 
 export async function main(ns: NS) {
-    const scriptName = 'scripts/earlyHack.js';
+    deployAllScripts(ns);
+}
 
-    const servers: string[] = updateServersFile(ns);
+export function deployAllScripts(ns: NS) {
+    const servers: string[] = getExternalServersList(ns);
 
-    ns.tprint(`Deploying to the following servers: ${servers.join(', ')}`);
+    const fileNames = [
+        loggerScriptName,
+        workerScriptName,
+        constantsFileName,
+        programsFileName,
+        utilsFileName,
+        argErrorFileName,
+    ];
 
     servers.forEach(server => {
-        if (!ns.fileExists(scriptName, server)) {
-            ns.scp(scriptName, server);
-        }
-
-        const availableServerRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
-        const scriptRam = ns.getScriptRam(scriptName);
-
-        const numOfScripts = Math.floor(availableServerRam / scriptRam);
-
-        if (availableServerRam >= scriptRam && !ns.scriptRunning(scriptName, server)) {
-            for (let i = 0; i < numOfScripts; i++) {
-                ns.exec(scriptName, server);
+        fileNames.forEach(file => {
+            if (ns.fileExists(file)) {
+                ns.rm(file, server);
             }
-        }
+
+            ns.scp(file, server);
+        });
     });
 }

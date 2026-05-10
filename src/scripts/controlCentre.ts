@@ -1,5 +1,11 @@
 import { NS, ScriptArg } from '@ns';
-import { hacknetScriptName, homeNode, spiderScriptName } from '../utils/constants';
+import {
+    colors,
+    hacknetScriptName,
+    homeNode,
+    loggerScriptName,
+    spiderScriptName,
+} from '../utils/constants';
 import { disableLogging } from '../utils/utils';
 
 interface ScriptConfig {
@@ -8,9 +14,18 @@ interface ScriptConfig {
 }
 
 export async function main(ns: NS) {
+    try {
+        await controlCentre(ns);
+    } catch (error: unknown) {
+        if (error instanceof Error)
+            ns.printf(`${colors.red}Error in control centre: ${error.message}`);
+    }
+}
+
+async function controlCentre(ns: NS) {
     disableLogging(ns, ['getServerMaxRam', 'getServerUsedRam']);
 
-    const sleepDuration = 5000; // in MS
+    const sleepDuration = 1000; // in MS
 
     const scripts: ScriptConfig[] = [
         {
@@ -20,25 +35,26 @@ export async function main(ns: NS) {
             scriptName: spiderScriptName,
             args: ['loop'],
         },
+        {
+            scriptName: loggerScriptName,
+        },
     ];
 
     while (true) {
         scripts.forEach(script => {
-            const serverAvailableRam = ns.getServerMaxRam(homeNode) - ns.getServerUsedRam(homeNode);
-            const scriptRam = ns.getScriptRam(script.scriptName);
-
             if (ns.scriptRunning(script.scriptName)) {
-                ns.print(`${script.scriptName} is already running on home server.`);
                 return;
             }
+
+            const serverAvailableRam = ns.getServerMaxRam(homeNode) - ns.getServerUsedRam(homeNode);
+            const scriptRam = ns.getScriptRam(script.scriptName);
 
             const canRunScript = serverAvailableRam >= scriptRam;
 
             if (!canRunScript) {
-                ns.print(
+                throw new Error(
                     `${script} RAM is too high for current server RAM. Available RAM is ${serverAvailableRam}, but script requires ${scriptRam}.`
                 );
-                return;
             }
 
             ns.run(script.scriptName, 1, ...(script.args || []));

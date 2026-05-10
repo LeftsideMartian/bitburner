@@ -14,7 +14,10 @@ export async function main(ns: NS) {
 
     if (mode === 'single') {
         updateServersFile(ns);
-        ns.tprint('Spider scraped the network for all servers, and wrote data to servers.txt.');
+        ns.toast(
+            'Spider scraped the network for all servers, and wrote data to servers.txt.',
+            'success'
+        );
     } else if (mode === 'loop') {
         const ms = 60000; // Run every 60 seconds
 
