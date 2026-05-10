@@ -1,4 +1,5 @@
 import { NS } from '@ns';
+import { ArgError } from '../errors/argError';
 import { getPrograms } from '../utils/programs';
 import { homeNode, serversFileName } from '../utils/constants';
 

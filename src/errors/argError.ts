@@ -1,4 +1,4 @@
-class ArgError extends Error {
+export class ArgError extends Error {
     name = 'ArgError';
     constructor(message: string) {
         super(message);
