@@ -3,12 +3,18 @@ import { ArgError } from '../errors/argError';
 import { getPrograms } from '../utils/programs';
 import { homeNode, serversFileName } from '../utils/constants';
 
+type SpiderMode = 'single' | 'loop' | undefined;
+
 export async function main(ns: NS) {
-    const mode = ns.args[0];
+    const mode = ns.args[0] as SpiderMode;
+
+    if (mode === undefined) {
+        throw new ArgError('No mode argument was passed. Choose either single or loop mode.');
+    }
 
     if (mode === 'single') {
         updateServersFile(ns);
-        return;
+        ns.tprint('Spider scraped the network for all servers, and wrote data to servers.txt.');
     } else if (mode === 'loop') {
         const ms = 60000; // Run every 60 seconds
 
@@ -17,24 +23,14 @@ export async function main(ns: NS) {
             await ns.sleep(ms);
         }
     } else {
-        if (mode === null || mode === '') {
-            throw new ArgError('No mode argument was passed. Choose either single or loop mode.');
-        } else {
-            throw new ArgError('Mode was not single or loop.');
-        }
+        throw new ArgError('Mode was not single or loop.');
     }
 }
 
-export function updateServersFile(ns: NS): void {
-    ns.write(
-        serversFileName,
-        scrapeNetwork(ns)
-            .filter(node => isNodeHackable(ns, node))
-            .join('\n'),
-        'w'
-    );
-
-    ns.print('Spider scraped the network for all servers, and wrote data to servers.txt.');
+export function updateServersFile(ns: NS): string[] {
+    const servers = scrapeNetwork(ns).filter(node => isNodeHackable(ns, node));
+    ns.write(serversFileName, servers.join('\n'), 'w');
+    return servers;
 }
 
 export function scrapeNetwork(ns: NS): string[] {
@@ -56,7 +52,7 @@ export function scrapeNetwork(ns: NS): string[] {
         results.push(...scanResults);
     }
 
-    return [...new Set(results)];
+    return [...new Set(results.filter(node => node !== homeNode))];
 }
 
 function isNodeHackable(ns: NS, node: string): boolean {

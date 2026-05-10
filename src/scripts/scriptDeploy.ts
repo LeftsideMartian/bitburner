@@ -1,12 +1,10 @@
 import { NS } from '@ns';
-import { getExternalServersList } from '../utils/utils';
 import { updateServersFile } from './spider';
 
 export async function main(ns: NS) {
-    const scriptName = 'earlyHack.js';
+    const scriptName = 'scripts/earlyHack.js';
 
-    updateServersFile(ns);
-    const servers: string[] = getExternalServersList(ns);
+    const servers: string[] = updateServersFile(ns);
 
     ns.tprint(`Deploying to the following servers: ${servers.join(', ')}`);
 
@@ -15,11 +13,15 @@ export async function main(ns: NS) {
             ns.scp(scriptName, server);
         }
 
-        while (
-            ns.getServerMaxRam(server) - ns.getServerUsedRam(server) >=
-            ns.getScriptRam(scriptName)
-        ) {
-            ns.exec(scriptName, server);
+        const availableServerRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
+        const scriptRam = ns.getScriptRam(scriptName);
+
+        const numOfScripts = Math.floor(availableServerRam / scriptRam);
+
+        if (availableServerRam >= scriptRam && !ns.scriptRunning(scriptName, server)) {
+            for (let i = 0; i < numOfScripts; i++) {
+                ns.exec(scriptName, server);
+            }
         }
     });
 }
