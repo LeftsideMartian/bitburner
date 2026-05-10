@@ -1,5 +1,5 @@
 import { NS } from '@ns';
-import { getExternalServersList } from './utils';
+import { getExternalServersList } from '../utils/utils';
 import { updateServersFile } from './spider';
 
 export async function main(ns: NS) {
