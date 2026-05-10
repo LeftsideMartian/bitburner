@@ -1,9 +1,27 @@
 import { NS } from '@ns';
-import { getPrograms } from './programs';
-import { homeNode, serversFileName } from './constants';
+import { getPrograms } from '../utils/programs';
+import { homeNode, serversFileName } from '../utils/constants';
 
 export async function main(ns: NS) {
-    updateServersFile(ns);
+    const mode = ns.args[0];
+
+    if (mode === 'single') {
+        updateServersFile(ns);
+        return;
+    } else if (mode === 'loop') {
+        const ms = 60000; // Run every 60 seconds
+
+        while (true) {
+            updateServersFile(ns);
+            await ns.sleep(ms);
+        }
+    } else {
+        if (mode === null || mode === '') {
+            throw new ArgError('No mode argument was passed. Choose either single or loop mode.');
+        } else {
+            throw new ArgError('Mode was not single or loop.');
+        }
+    }
 }
 
 export function updateServersFile(ns: NS): void {
@@ -15,7 +33,7 @@ export function updateServersFile(ns: NS): void {
         'w'
     );
 
-    ns.tprint('Spider scraped the network for all servers, and wrote data to servers.txt.');
+    ns.print('Spider scraped the network for all servers, and wrote data to servers.txt.');
 }
 
 export function scrapeNetwork(ns: NS): string[] {
