@@ -1,13 +1,11 @@
 import { NS } from '@ns';
-import { getExternalServersList } from '../utils/utils';
-import { updateServersFile } from './spider';
+import { scrapeNetwork } from './spider';
 
 export async function main(ns: NS) {
     const targetServer = ns.args[0].toString();
     const originNode = ns.getHostname();
 
-    updateServersFile(ns);
-    const servers: string[] = getExternalServersList(ns);
+    const servers: string[] = scrapeNetwork(ns);
 
     if (!servers.includes(targetServer)) {
         ns.tprint('Could not find target server in network.');
