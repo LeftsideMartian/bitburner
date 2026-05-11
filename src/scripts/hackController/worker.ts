@@ -1,6 +1,7 @@
 import { NS } from '@ns';
 import { ArgError } from '../../errors/argError';
 import { log } from '../logger';
+import { Job } from '/types';
 
 export async function main(ns: NS) {
     try {
@@ -20,41 +21,20 @@ export async function main(ns: NS) {
 
 async function doWork(ns: NS) {
     // Args
-    const target = ns.args[0].toString();
+    const job: Job = JSON.parse(ns.args[0] as string);
 
-    const workerAction = getWorkerAction(ns);
-
-    switch (workerAction) {
-        case 'g':
-            await ns.grow(target);
+    switch (job.action) {
+        case 'grow':
+            await ns.grow(job.target, { additionalMsec: job.delay });
             break;
-        case 'w':
-            await ns.weaken(target);
+        case 'weaken1':
+        case 'weaken2':
+            await ns.weaken(job.target, { additionalMsec: job.delay });
             break;
-        case 'h':
-            await ns.hack(target);
+        case 'hack':
+            await ns.hack(job.target, { additionalMsec: job.delay });
             break;
-        case '_':
-            throw new ArgError('Unexpected _ worker action. Did not expect to reach this code.');
+        default:
+            throw new ArgError(`Unexpected worker action. Received ${job.action}`);
     }
-}
-
-// function getControllerPort(ns: NS) {
-//     const controllerPID = Number(ns.args[2].toString());
-
-//     if (isNaN(controllerPID)) {
-//         throw new ArgError('Invalid controller PID argument passed to worker.');
-//     } else {
-//         return ns.getPortHandle(controllerPID);
-//     }
-// }
-
-function getWorkerAction(ns: NS): WorkerAction {
-    const workerAction = ns.args[1] as WorkerAction;
-
-    if (workerAction === '_') {
-        throw new ArgError('Invalid worker action as arg.');
-    }
-
-    return workerAction;
 }

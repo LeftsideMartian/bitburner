@@ -11,6 +11,7 @@ import { disableLogging } from '../utils/utils';
 interface ScriptConfig {
     scriptName: string;
     args?: ScriptArg[];
+    enabled: boolean;
 }
 
 export async function main(ns: NS) {
@@ -30,19 +31,26 @@ async function controlCentre(ns: NS) {
     const scripts: ScriptConfig[] = [
         {
             scriptName: hacknetScriptName,
+            enabled: true,
         },
         {
             scriptName: spiderScriptName,
             args: ['loop'],
+            enabled: true,
         },
         {
             scriptName: loggerScriptName,
+            enabled: true,
         },
     ];
 
     while (true) {
         scripts.forEach(script => {
             if (ns.scriptRunning(script.scriptName)) {
+                if (!script.enabled) {
+                    ns.scriptKill(script.scriptName);
+                }
+
                 return;
             }
 
@@ -57,7 +65,7 @@ async function controlCentre(ns: NS) {
                 );
             }
 
-            ns.run(script.scriptName, 1, ...(script.args || []));
+            if (script.enabled) ns.run(script.scriptName, 1, ...(script.args || []));
         });
 
         await ns.sleep(sleepDuration);
