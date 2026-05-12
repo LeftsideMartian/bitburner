@@ -1,23 +1,30 @@
 import { NS } from '@ns';
-import { workerScriptName } from '/utils/constants';
 import { log } from '../logger';
-import { deployAllScripts, disableLogging, getServers, prep } from '../../utils/utils';
-import {
-    WorkerAction,
-    Batch,
-    ServerData,
-    BatchTimes,
-    Job,
-    BatchThreads,
-    BatchDelays,
-} from '/types';
+import { deployAllScripts, getServers } from './controllerUtils';
+import { Job } from '/types';
+import { workerActions, workerScriptName } from '/utils/constants';
+import { disableLogging } from '/utils/utils';
+import { Metrics } from './metrics';
+import { RamManager } from './ramManager';
 
-const workerActions: WorkerAction[] = ['hack', 'weaken1', 'grow', 'weaken2'];
-const greed = 0.1; // % of money to steal per hack
-const buffer = 50; // In ms
+const greed = 0.05; // % of money to steal per hack
+let ramManager: RamManager;
 
 export async function main(ns: NS) {
-    disableLogging(ns, ['ui.clearTerminal']);
+    disableLogging(ns, [
+        'getHackingLevel',
+        'getServerGrowth',
+        'getServerMaxMoney',
+        'getServerMaxRam',
+        'getServerMinSecurityLevel',
+        'getServerMoneyAvailable',
+        'getServerRequiredHackingLevel',
+        'getServerSecurityLevel',
+        'getServerUsedRam',
+        'scp',
+        'ui.clearTerminal',
+        'scan',
+    ]);
 
     try {
         await controlWorkers(ns);
@@ -27,109 +34,73 @@ export async function main(ns: NS) {
 }
 
 async function controlWorkers(ns: NS) {
-    const serverData = getServers(ns);
-
-    // Ensure scripts are everywhere
-    deployAllScripts(ns, serverData);
+    const servers = getServers(ns);
 
     // const target = getTarget(serverData);
-    let target = serverData['n00dles'];
+    const target = 'n00dles';
 
-    target = await prep(ns, target);
+    const metrics = new Metrics(ns, target);
+    ramManager = new RamManager(ns, servers);
 
-    const batch: Batch = {
-        target: target,
-        delays: calculateDelays(ns, target),
-        threads: calculateThreads(ns, target),
-        times: calculateTimes(ns, target),
-        jobs: [],
-    };
+    // Do prep
+
+    while (true) {
+        metrics.calculate(ns, greed);
+
+        const jobs = createBatch(ns, metrics);
+
+        for (const job of jobs) {
+            job.endTime += metrics.cumulativeDelay;
+            const workerPid = spawnWorker(ns, job);
+            if (!workerPid) throw new Error(`Unable to deploy ${job.action}`);
+
+            await ns.nextPortWrite(workerPid);
+            metrics.cumulativeDelay += ns.readPort(workerPid);
+        }
+
+        await ns.nextPortWrite(ns.pid);
+        ns.clearPort(ns.pid);
+    }
+}
+
+function createBatch(ns: NS, metrics: Metrics): Job[] {
+    const jobs: Job[] = [];
 
     log(
         ns,
-        `Launching a batch to target ${batch.target.hostName}\n
-        Total duration: ${ns.format.time(batch.delays.weaken2 + batch.times.weaken2)}
-        Income: ${greed * target.maxMoney}
+        `Launching a batch to target ${metrics.target}\n
+        Total duration: ${ns.format.time(metrics.durations.weaken2)}
+        Income: $${ns.format.number(metrics.greed * metrics.maxMoney)}
         `,
         'info'
     );
 
-    workerActions.forEach(action =>
-        batch.jobs.push({
+    workerActions.forEach(action => {
+        const job = {
             action: action,
-            delay: batch.delays[action],
+            threads: metrics.threads[action],
+            target: metrics.target,
+            duration: metrics.durations[action],
+            endTime:
+                Date.now() +
+                metrics.durations.weaken1 +
+                metrics.actionBuffer * workerActions.indexOf(action),
             host: 'iron-gym',
-            target: batch.target.hostName,
-            threads: batch.threads[action],
-        })
-    );
+            controllerPort: metrics.controllerPort,
+            ramCost: metrics.workerRam * metrics.threads[action],
+            batchNum: 1,
+            reportToController: action === 'weaken2',
+        };
 
-    batch.jobs.forEach(job => {
-        spawnWorker(ns, job);
+        if (!ramManager.assignJob(job)) {
+            throw new Error(`Could not assign ${action} job in network.`);
+        }
+
+        jobs.push(job);
     });
 
-    log(ns, `Launched batch successfully!`, 'success');
+    return jobs;
 }
 
-function calculateDelays(ns: NS, target: ServerData): BatchDelays {
-    const weakenTime = ns.getWeakenTime(target.hostName);
-    const hackTime = ns.getHackTime(target.hostName);
-    const growTime = ns.getGrowTime(target.hostName);
-
-    return {
-        hack: weakenTime - buffer - hackTime,
-        weaken1: 0,
-        grow: weakenTime + buffer - growTime,
-        weaken2: buffer * 2,
-    };
-}
-
-function calculateThreads(ns: NS, target: ServerData): BatchThreads {
-    const securityGrowthPerHackThread = 0.002;
-    const securityGrowthPerGrowThread = 0.004;
-    const securityDecreasePerWeakenThread = 0.05;
-
-    const moneyToSteal = greed * target.maxMoney;
-
-    const hackThreads = Math.max(
-        Math.floor(ns.hackAnalyzeThreads(target.hostName, moneyToSteal)),
-        1
-    );
-
-    const growThreads = Math.max(
-        Math.floor(
-            ns.growthAnalyze(target.hostName, target.maxMoney / (target.maxMoney - moneyToSteal))
-        ),
-        1
-    );
-
-    const weaken1Threads = Math.max(
-        Math.floor((hackThreads * securityGrowthPerHackThread) / securityDecreasePerWeakenThread),
-        1
-    );
-    const weaken2Threads = Math.max(
-        Math.floor((growThreads * securityGrowthPerHackThread) / securityGrowthPerGrowThread),
-        1
-    );
-
-    return {
-        hack: hackThreads,
-        weaken1: weaken1Threads,
-        grow: growThreads,
-        weaken2: weaken2Threads,
-    };
-}
-
-function calculateTimes(ns: NS, target: ServerData): BatchTimes {
-    const weakenTime = ns.getWeakenTime(target.hostName);
-
-    return {
-        hack: ns.getHackTime(target.hostName),
-        weaken1: weakenTime,
-        grow: ns.getGrowTime(target.hostName),
-        weaken2: weakenTime,
-    };
-}
-
-const spawnWorker = (ns: NS, job: Job) =>
+const spawnWorker = (ns: NS, job: Job): number =>
     ns.exec(workerScriptName, job.host, job.threads, JSON.stringify(job));

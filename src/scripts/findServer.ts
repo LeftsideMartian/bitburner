@@ -12,7 +12,7 @@ export async function main(ns: NS) {
         return;
     }
 
-    const path = findTargetServer(ns, originNode, targetServer).join(' -> ');
+    const path = 'connect ' + findTargetServer(ns, originNode, targetServer).join('; connect ');
 
     ns.tprint(path);
 }

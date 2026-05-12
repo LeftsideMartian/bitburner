@@ -2,8 +2,11 @@ import { NS } from '@ns';
 import { ArgError } from '../../errors/argError';
 import { log } from '../logger';
 import { Job } from '/types';
+import { workerRamCost } from '/utils/constants';
 
 export async function main(ns: NS) {
+    ns.ramOverride(workerRamCost);
+
     try {
         await doWork(ns);
     } catch (error: unknown) {
@@ -23,18 +26,36 @@ async function doWork(ns: NS) {
     // Args
     const job: Job = JSON.parse(ns.args[0] as string);
 
+    let delay = job.endTime - job.duration - Date.now();
+
+    if (delay < 0) {
+        log(ns, `Batch ${job.batchNum} ${job.action} was ${-delay}ms late.`, 'warning');
+        ns.writePort(ns.pid, -delay);
+        delay = 0;
+    } else {
+        ns.writePort(ns.pid, 0);
+    }
+
     switch (job.action) {
         case 'grow':
-            await ns.grow(job.target, { additionalMsec: job.delay });
+            await ns.grow(job.target, { additionalMsec: delay });
             break;
         case 'weaken1':
         case 'weaken2':
-            await ns.weaken(job.target, { additionalMsec: job.delay });
+            await ns.weaken(job.target, { additionalMsec: delay });
             break;
         case 'hack':
-            await ns.hack(job.target, { additionalMsec: job.delay });
+            await ns.hack(job.target, { additionalMsec: delay });
             break;
         default:
             throw new ArgError(`Unexpected worker action. Received ${job.action}`);
     }
+
+    if (job.reportToController) ns.writePort(job.controllerPort, job.action + job.host);
+
+    log(
+        ns,
+        `Batch ${job.batchNum} ${job.action} finished at ${new Date().toLocaleTimeString()}`,
+        'success'
+    );
 }

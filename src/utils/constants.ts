@@ -1,4 +1,10 @@
+import { WorkerAction } from '/types';
+
 export const homeNode = 'home';
+
+export const workerActions: WorkerAction[] = ['hack', 'weaken1', 'grow', 'weaken2'];
+export const baseScriptRamCost = 1.6;
+export const workerRamCost = 1.75;
 
 // Directories
 const scriptDirectory = 'scripts/';
@@ -15,6 +21,8 @@ export const spiderScriptName = scriptDirectory + 'spider.js';
 export const hacknetScriptName = scriptDirectory + 'hacknet.js';
 export const loggerScriptName = scriptDirectory + 'logger.js';
 export const workerScriptName = scriptDirectory + hackControllerDirectory + 'worker.js';
+export const controllerUtilsScriptName =
+    scriptDirectory + hackControllerDirectory + 'controllerUtils.js';
 export const constantsFileName = utilsDirectory + 'constants.js';
 export const programsFileName = utilsDirectory + 'programs.js';
 export const utilsFileName = utilsDirectory + 'utils.js';

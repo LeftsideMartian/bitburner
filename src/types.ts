@@ -8,53 +8,24 @@ export interface Log {
     type: LogType;
 }
 
-// Controller
-export type ServerDataCollection = { [key: string]: ServerData };
-
-export interface ServerData {
-    hostName: string;
-    totalRam: number;
-    usedRam: number;
-    hasRootAccess: boolean;
-    currentSecurityLevel: number;
-    minSecurityLevel: number;
-    currentMoney: number;
-    maxMoney: number;
-    serverGrowth: number;
-    targetScore: number;
-    isPrepped: boolean;
-    hackChance: number;
-}
-
 // Worker
 export type WorkerAction = 'hack' | 'weaken1' | 'grow' | 'weaken2';
 
-export type BatchDelays = {
+export type ActionValues = {
     [key in WorkerAction]: number;
 };
-
-export type BatchThreads = {
-    [key in WorkerAction]: number;
-};
-
-export type BatchTimes = {
-    [key in WorkerAction]: number;
-};
-
-export interface Batch {
-    target: ServerData;
-    delays: BatchDelays;
-    threads: BatchThreads;
-    times: BatchTimes;
-    jobs: Job[];
-}
 
 export interface Job {
     action: WorkerAction;
     threads: number;
     target: string;
-    delay: number;
+    duration: number;
+    endTime: number;
     host: string;
+    controllerPort: number;
+    ramCost: number;
+    batchNum: number;
+    reportToController: boolean;
 }
 
 // NS

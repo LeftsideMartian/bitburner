@@ -1,10 +1,12 @@
 import { NS } from '@ns';
 import { colors, loggerPortNumber, nullPortData } from '/utils/constants';
-import { disableLogging } from '/utils/utils';
 import { Log, LogType } from '/types';
 
 export async function main(ns: NS) {
-    disableLogging(ns, ['sleep']);
+    ns.ui.openTail();
+    ns.ui.moveTail(1120, 0);
+    ns.ui.setTailMinimized(true);
+    ns.atExit(() => ns.ui.closeTail());
 
     ns.clearPort(loggerPortNumber);
 
@@ -16,7 +18,9 @@ export async function main(ns: NS) {
         // Process all queued logs
         while ((portContent = ns.readPort(loggerPortNumber)) !== nullPortData) {
             const log = JSON.parse(portContent) as Log;
-            ns.print(`${getLogColor(log.type)}${log.type.toUpperCase()} | ${log.message}`);
+            ns.print(
+                `${getLogColor(log.type)}${log.type.toUpperCase().padEnd(7 - log.type.length, ' ')} | ${log.message}`
+            );
         }
     }
 }
@@ -40,7 +44,6 @@ const getLogColor = (type: LogType) => {
 export const log = (ns: NS, message: string, type: LogType) =>
     writeLog(ns, { message: message, type: type });
 
-function writeLog(ns: NS, log: Log): boolean {
-    const loggerPort = ns.getPortHandle(loggerPortNumber);
-    return loggerPort.tryWrite(JSON.stringify(log));
+function writeLog(ns: NS, log: Log) {
+    ns.writePort(loggerPortNumber, JSON.stringify(log));
 }
