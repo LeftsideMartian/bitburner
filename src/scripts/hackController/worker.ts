@@ -51,11 +51,13 @@ async function doWork(ns: NS) {
             throw new ArgError(`Unexpected worker action. Received ${job.action}`);
     }
 
-    if (job.reportToController) ns.writePort(job.controllerPort, job.action + job.host);
+    ns.atExit(() => {
+        if (job.reportToController) ns.writePort(job.controllerPort, job.action + job.host);
 
-    log(
-        ns,
-        `Batch ${job.batchNum} ${job.action} finished at ${new Date().toLocaleTimeString()}`,
-        'success'
-    );
+        log(
+            ns,
+            `Batch ${job.batchNum} ${job.action} finished at ${new Date().toLocaleTimeString()}`,
+            'success'
+        );
+    });
 }

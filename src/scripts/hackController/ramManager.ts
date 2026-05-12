@@ -1,6 +1,6 @@
 import { NS } from '@ns';
-import { baseScriptRamCost, workerRamCost } from '/utils/constants';
-import { Job } from '/types';
+import { baseScriptRamCost, workerRamCost, workerActions } from '/utils/constants';
+import { ActionValues, Job } from '/types';
 
 interface ServerRam {
     hostName: string;
@@ -35,7 +35,7 @@ export class RamManager {
                     availableRam: availableRam,
                 });
 
-                this.totalRam += maxRam;
+                this.totalRam += availableRam;
                 this.availableRam += availableRam;
                 this.availablePrepThreads = Math.floor(availableRam / workerRamCost);
                 if (availableRam < this.minAvailableRam) this.minAvailableRam = availableRam;
@@ -76,5 +76,36 @@ export class RamManager {
         const server = this.getServer(job.host);
         server.availableRam += job.ramCost;
         this.totalRam += job.ramCost;
+    }
+
+    cloneServers() {
+        return this.servers.map(server => ({ ...server }));
+    }
+
+    tryAllocateBatches(actionCosts: ActionValues): number {
+        const servers = this.cloneServers();
+
+        let serversAvailable = true;
+        let numOfBatches = 0;
+
+        while (serversAvailable) {
+            for (const action of workerActions) {
+                const cost = actionCosts[action];
+                const server = servers.find(server => cost <= server.availableRam);
+
+                if (server === undefined) {
+                    serversAvailable = false;
+                    break;
+                } else {
+                    server.availableRam -= cost;
+                }
+            }
+
+            if (serversAvailable) {
+                numOfBatches++;
+            }
+        }
+
+        return numOfBatches;
     }
 }

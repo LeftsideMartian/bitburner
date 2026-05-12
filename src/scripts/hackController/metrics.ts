@@ -1,6 +1,12 @@
 import { NS } from '@ns';
 import { ActionValues } from '/types';
-import { workerRamCost, workerScriptName } from '/utils/constants';
+import {
+    securityDecreasePerWeakenThread,
+    securityGrowthPerGrowThread,
+    securityGrowthPerHackThread,
+    workerRamCost,
+} from '/utils/constants';
+import { isPrepped } from './controllerUtils';
 
 export class Metrics {
     target: string;
@@ -9,10 +15,12 @@ export class Metrics {
     currentMoney: number;
     minimumSecurity: number;
     currentSecurity: number;
+    isPrepped: boolean;
     threads: ActionValues;
     durations: ActionValues;
-    endTimes: ActionValues;
+    endTime: number;
     greed: number; // % of money to steal
+    numOfBatches: number;
     cumulativeDelay: number;
     controllerPort: number;
     workerRam: number;
@@ -25,12 +33,14 @@ export class Metrics {
         this.currentMoney = ns.getServerMoneyAvailable(target);
         this.minimumSecurity = ns.getServerMinSecurityLevel(target);
         this.currentSecurity = ns.getServerSecurityLevel(target);
+        this.isPrepped = isPrepped(ns, target);
 
         this.threads = { hack: 0, weaken1: 0, grow: 0, weaken2: 0 };
         this.durations = { hack: 0, weaken1: 0, grow: 0, weaken2: 0 };
-        this.endTimes = { hack: 0, weaken1: 0, grow: 0, weaken2: 0 };
+        this.endTime = 0;
 
         this.greed = 0.1;
+        this.numOfBatches = 1;
         this.cumulativeDelay = 0;
 
         this.controllerPort = ns.pid;
@@ -38,21 +48,16 @@ export class Metrics {
         this.actionBuffer = 5;
     }
 
-    public calculate(ns: NS, greed: number = this.greed) {
+    public calculate(ns: NS) {
         this.hackChance = ns.hackAnalyzeChance(this.target);
         this.currentMoney = ns.getServerMoneyAvailable(this.target);
         this.currentSecurity = ns.getServerSecurityLevel(this.target);
 
-        this.greed = greed;
         this.calculateThreads(ns);
         this.calculateDurations(ns);
     }
 
     private calculateThreads(ns: NS) {
-        const securityGrowthPerHackThread = 0.002;
-        const securityGrowthPerGrowThread = 0.004;
-        const securityDecreasePerWeakenThread = 0.05;
-
         const moneyToSteal = this.greed * this.maxMoney;
 
         const hackThreads = Math.max(
@@ -63,13 +68,15 @@ export class Metrics {
             ns.growthAnalyze(this.target, this.maxMoney / (this.maxMoney - moneyToSteal))
         );
         const weaken1Threads = Math.max(
-            Math.floor(
+            Math.ceil(
                 (hackThreads * securityGrowthPerHackThread) / securityDecreasePerWeakenThread
             ),
             1
         );
         const weaken2Threads = Math.max(
-            Math.floor((growThreads * securityGrowthPerHackThread) / securityGrowthPerGrowThread),
+            Math.ceil(
+                (growThreads * securityGrowthPerGrowThread) / securityDecreasePerWeakenThread
+            ),
             1
         );
 

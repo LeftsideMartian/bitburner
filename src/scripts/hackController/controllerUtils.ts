@@ -79,36 +79,12 @@ function getRootAccess(ns: NS, node: string): boolean {
     }
 }
 
-// export async function prep(ns: NS, server: string): Promise<ServerData> {
-//     log(ns, `Doing prep on ${server.hostName}.`, 'info');
-
-//     while (true) {
-//         if (server.currentMoney < server.maxMoney) {
-//             log(ns, `Growing ${server.hostName}.`, 'info');
-//             await ns.grow(server.hostName);
-//             log(ns, `Target grew.`, 'info');
-//         } else if (server.currentSecurityLevel > server.minSecurityLevel) {
-//             log(ns, `Weakening ${server.hostName}.`, 'info');
-//             await ns.weaken(server.hostName);
-//             log(ns, `Target weakened.`, 'info');
-//         } else {
-//             log(ns, `Target is prepped!`, 'success');
-//             break;
-//         }
-
-//         server.currentMoney = ns.getServerMoneyAvailable(server.hostName);
-//         server.currentSecurityLevel = ns.getServerSecurityLevel(server.hostName);
-
-//         await ns.sleep(100);
-//     }
-
-//     return getServerData(ns, server.hostName);
-// }
-
 const isSecurityPrepped = (ns: NS, target: string) =>
-    ns.getServerSecurityLevel(target) < ns.getServerMinSecurityLevel(target);
+    ns.getServerSecurityLevel(target) <= ns.getServerMinSecurityLevel(target);
 const isMoneyPrepped = (ns: NS, target: string) =>
-    ns.getServerMoneyAvailable(target) < ns.getServerMaxMoney(target);
+    ns.getServerMoneyAvailable(target) <= ns.getServerMaxMoney(target);
 
+export const isPrepped = (ns: NS, target: string) =>
+    isSecurityPrepped(ns, target) && isMoneyPrepped(ns, target);
 export const spawnWorker = (ns: NS, job: Job): number =>
     ns.exec(workerScriptName, job.host, job.threads, JSON.stringify(job));

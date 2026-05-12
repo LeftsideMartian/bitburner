@@ -2,9 +2,13 @@ import { WorkerAction } from '/types';
 
 export const homeNode = 'home';
 
+// Hack controller
 export const workerActions: WorkerAction[] = ['hack', 'weaken1', 'grow', 'weaken2'];
+export const securityGrowthPerHackThread = 0.002;
+export const securityGrowthPerGrowThread = 0.004;
+export const securityDecreasePerWeakenThread = 0.05;
 export const baseScriptRamCost = 1.6;
-export const workerRamCost = 1.75;
+export const workerRamCost = 2.05;
 
 // Directories
 const scriptDirectory = 'scripts/';
@@ -20,6 +24,7 @@ export const serversFileName = txtFileDirectory + 'servers.txt';
 export const spiderScriptName = scriptDirectory + 'spider.js';
 export const hacknetScriptName = scriptDirectory + 'hacknet.js';
 export const loggerScriptName = scriptDirectory + 'logger.js';
+export const controllerScriptName = scriptDirectory + hackControllerDirectory + 'hackController.js';
 export const workerScriptName = scriptDirectory + hackControllerDirectory + 'worker.js';
 export const controllerUtilsScriptName =
     scriptDirectory + hackControllerDirectory + 'controllerUtils.js';

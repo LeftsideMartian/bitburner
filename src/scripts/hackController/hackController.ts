@@ -1,16 +1,29 @@
 import { NS } from '@ns';
 import { log } from '../logger';
-import { deployAllScripts, getServers } from './controllerUtils';
+import { getServers, spawnWorker } from './controllerUtils';
 import { Job } from '/types';
-import { workerActions, workerScriptName } from '/utils/constants';
+import {
+    controllerScriptName,
+    loggerPortNumber,
+    securityDecreasePerWeakenThread,
+    securityGrowthPerGrowThread,
+    securityGrowthPerHackThread,
+    workerActions,
+    workerRamCost,
+} from '/utils/constants';
 import { disableLogging } from '/utils/utils';
 import { Metrics } from './metrics';
 import { RamManager } from './ramManager';
 
-const greed = 0.05; // % of money to steal per hack
 let ramManager: RamManager;
 
 export async function main(ns: NS) {
+    // If hackController takes the logger port, restart it
+    if (ns.pid === loggerPortNumber) {
+        ns.run(controllerScriptName);
+        ns.kill(ns.pid);
+    }
+
     disableLogging(ns, [
         'getHackingLevel',
         'getServerGrowth',
@@ -26,81 +39,145 @@ export async function main(ns: NS) {
         'scan',
     ]);
 
-    try {
-        await controlWorkers(ns);
-    } catch (error: unknown) {
-        if (error instanceof Error) log(ns, error.message, 'error');
-    }
+    // try {
+
+    // } catch (error: unknown) {
+    //     if (error instanceof Error) log(ns, JSON.stringify(error), 'error');
+    // }
+
+    await controlWorkers(ns);
 }
 
 async function controlWorkers(ns: NS) {
-    const servers = getServers(ns);
-
-    // const target = getTarget(serverData);
-    const target = 'n00dles';
-
-    const metrics = new Metrics(ns, target);
-    ramManager = new RamManager(ns, servers);
-
-    // Do prep
-
     while (true) {
-        metrics.calculate(ns, greed);
+        const port = ns.getPortHandle(ns.pid);
+        port.clear();
 
-        const jobs = createBatch(ns, metrics);
+        const servers = getServers(ns);
+
+        // const target = getTarget(serverData);
+        const target = 'n00dles';
+
+        const metrics = new Metrics(ns, target);
+        ramManager = new RamManager(ns, servers);
+
+        // Do prep
+        await optimizeShotgun(ns, metrics, ramManager);
+        metrics.calculate(ns);
+
+        const jobs = createBatches(ns, metrics);
 
         for (const job of jobs) {
             job.endTime += metrics.cumulativeDelay;
             const workerPid = spawnWorker(ns, job);
-            if (!workerPid) throw new Error(`Unable to deploy ${job.action}`);
+            if (!workerPid) throw new Error(`Unable to deploy ${job.action} to ${job.host}`);
 
             await ns.nextPortWrite(workerPid);
             metrics.cumulativeDelay += ns.readPort(workerPid);
         }
 
-        await ns.nextPortWrite(ns.pid);
-        ns.clearPort(ns.pid);
+        jobs.reverse();
+
+        do {
+            await port.nextWrite();
+            port.clear();
+            ramManager.finishJob(jobs.pop() as Job);
+        } while (jobs.length > 0);
     }
 }
 
-function createBatch(ns: NS, metrics: Metrics): Job[] {
+function createBatches(ns: NS, metrics: Metrics): Job[] {
     const jobs: Job[] = [];
+
+    for (let i = 0; i < metrics.numOfBatches; i++) {
+        workerActions.forEach(action => {
+            metrics.endTime += metrics.actionBuffer;
+
+            const job = {
+                action: action,
+                threads: metrics.threads[action],
+                target: metrics.target,
+                duration: metrics.durations[action],
+                endTime: metrics.endTime,
+                host: 'ToBeAssignedByRamManager',
+                controllerPort: metrics.controllerPort,
+                ramCost: metrics.workerRam * metrics.threads[action],
+                batchNum: i,
+                reportToController: true,
+            };
+
+            if (!ramManager.assignJob(job)) {
+                throw new Error(`Could not assign ${action} job in network.`);
+            }
+
+            jobs.push(job);
+        });
+    }
 
     log(
         ns,
-        `Launching a batch to target ${metrics.target}\n
-        Total duration: ${ns.format.time(metrics.durations.weaken2)}
-        Income: $${ns.format.number(metrics.greed * metrics.maxMoney)}
-        `,
+        `Queuing ${metrics.numOfBatches * workerActions.length} jobs at ${metrics.target}`,
         'info'
     );
-
-    workerActions.forEach(action => {
-        const job = {
-            action: action,
-            threads: metrics.threads[action],
-            target: metrics.target,
-            duration: metrics.durations[action],
-            endTime:
-                Date.now() +
-                metrics.durations.weaken1 +
-                metrics.actionBuffer * workerActions.indexOf(action),
-            host: 'iron-gym',
-            controllerPort: metrics.controllerPort,
-            ramCost: metrics.workerRam * metrics.threads[action],
-            batchNum: 1,
-            reportToController: action === 'weaken2',
-        };
-
-        if (!ramManager.assignJob(job)) {
-            throw new Error(`Could not assign ${action} job in network.`);
-        }
-
-        jobs.push(job);
-    });
 
     return jobs;
 }
 
-const spawnWorker = (ns: NS, job: Job): number =>
-    ns.exec(workerScriptName, job.host, job.threads, JSON.stringify(job));
+async function optimizeShotgun(ns: NS, metrics: Metrics, ramManager: RamManager) {
+    const maxThreads = ramManager.maxAvailableRam / workerRamCost;
+    const weakenTime = ns.getWeakenTime(metrics.target);
+
+    const minGreed = 0.01;
+
+    let greed = 0.99;
+    let bestIncome = 0;
+    const stepValue = 0.01;
+
+    while (greed > minGreed) {
+        const moneyToSteal = greed * metrics.maxMoney;
+
+        const hackThreads = Math.max(
+            Math.floor(ns.hackAnalyzeThreads(metrics.target, moneyToSteal)),
+            1
+        );
+        const growThreads = Math.ceil(
+            ns.growthAnalyze(metrics.target, metrics.maxMoney / (metrics.maxMoney - moneyToSteal))
+        );
+
+        // If theoretical hack or grow can fit on our biggest server
+        if (Math.max(hackThreads, growThreads) <= maxThreads) {
+            const weaken1Threads = Math.max(
+                Math.ceil(
+                    (hackThreads * securityGrowthPerHackThread) / securityDecreasePerWeakenThread
+                ),
+                1
+            );
+            const weaken2Threads = Math.max(
+                Math.ceil(
+                    (growThreads * securityGrowthPerGrowThread) / securityDecreasePerWeakenThread
+                ),
+                1
+            );
+
+            const numOfBatches = ramManager.tryAllocateBatches({
+                hack: hackThreads * workerRamCost,
+                weaken1: weaken1Threads * workerRamCost,
+                grow: growThreads * workerRamCost,
+                weaken2: weaken2Threads * workerRamCost,
+            });
+
+            const totalIncome = moneyToSteal * numOfBatches;
+            const totalTime = metrics.actionBuffer * 4 * numOfBatches + weakenTime;
+
+            const incomePerSecond = totalIncome / totalTime;
+
+            if (incomePerSecond > bestIncome) {
+                bestIncome = incomePerSecond;
+                metrics.greed = greed;
+                metrics.numOfBatches = numOfBatches;
+            }
+        }
+
+        greed = Math.round((greed - stepValue) * 100) / 100;
+    }
+}
