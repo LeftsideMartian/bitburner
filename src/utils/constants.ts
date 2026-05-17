@@ -2,6 +2,7 @@ import { WorkerAction } from '/types';
 
 export const homeNode = 'home';
 
+// __________Scripts__________
 // Hack controller
 export const workerActions: WorkerAction[] = ['hack', 'weaken1', 'grow', 'weaken2'];
 export const securityGrowthPerHackThread = 0.002;
@@ -10,17 +11,19 @@ export const securityDecreasePerWeakenThread = 0.05;
 export const baseScriptRamCost = 1.6;
 export const workerRamCost = 2.05;
 
-// Directories
+export const purchaseServerPrefix = 'pserv-';
+
+// __________Directories__________
 const scriptDirectory = 'scripts/';
 const txtFileDirectory = 'txt/';
 const hackControllerDirectory = 'hackController/';
 const errorsDirectory = 'errors/';
 const utilsDirectory = 'utils/';
 
-// Txt files
+// __________Txt files__________
 export const serversFileName = txtFileDirectory + 'servers.txt';
 
-// Scripts
+// __________Script names__________
 export const spiderScriptName = scriptDirectory + 'spider.js';
 export const hacknetScriptName = scriptDirectory + 'hacknet.js';
 export const loggerScriptName = scriptDirectory + 'logger.js';
@@ -33,11 +36,11 @@ export const programsFileName = utilsDirectory + 'programs.js';
 export const utilsFileName = utilsDirectory + 'utils.js';
 export const argErrorFileName = errorsDirectory + 'argError.js';
 
-// Ports
+// __________Ports__________
 export const nullPortData = 'NULL PORT DATA';
 export const loggerPortNumber = 1;
 
-// Print
+// __________Print__________
 export const colors = {
     red: '\u001b[31m',
     yellow: '\u001b[33m',

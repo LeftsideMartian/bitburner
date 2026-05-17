@@ -8,17 +8,17 @@ export async function main(ns: NS) {
 export async function manageHacknet(ns: NS) {
     const hacknet = ns.hacknet;
 
-    const hacknetPurchaseThreshold = 100;
+    const purchaseThreshold = 2; // Number of e's to set the purchase limit
+    const purchaseLimit = 10 ** purchaseThreshold;
     const sleepDuration = 1000; // in MS
 
     let numOfOwnedNodes = hacknet.numNodes();
 
     while (true) {
         const currentMoney = ns.getServerMoneyAvailable(homeNode);
-        const purchaseThreshold = currentMoney / hacknetPurchaseThreshold;
 
         // Try to purchase new node
-        if (hacknet.getPurchaseNodeCost() <= purchaseThreshold) {
+        if (hacknet.getPurchaseNodeCost() <= purchaseLimit) {
             hacknet.purchaseNode();
             numOfOwnedNodes++;
         }
