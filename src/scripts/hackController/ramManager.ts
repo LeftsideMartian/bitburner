@@ -8,6 +8,7 @@ interface ServerRam {
 }
 
 export class RamManager {
+    networkTotalRam: number;
     totalRam: number;
     availableRam: number;
     minAvailableRam: number;
@@ -17,6 +18,7 @@ export class RamManager {
     serverMap: Map<string, number>;
 
     constructor(ns: NS, servers: string[]) {
+        this.networkTotalRam = 0;
         this.totalRam = 0;
         this.availableRam = 0;
         this.minAvailableRam = Infinity;
@@ -35,9 +37,10 @@ export class RamManager {
                     availableRam: availableRam,
                 });
 
+                this.networkTotalRam += maxRam;
                 this.totalRam += availableRam;
                 this.availableRam += availableRam;
-                this.availablePrepThreads = Math.floor(availableRam / workerRamCost);
+                this.availablePrepThreads += Math.floor(availableRam / workerRamCost);
                 if (availableRam < this.minAvailableRam) this.minAvailableRam = availableRam;
                 if (availableRam > this.maxAvailableRam) this.maxAvailableRam = availableRam;
             }

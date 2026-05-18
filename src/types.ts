@@ -1,4 +1,4 @@
-import { NS } from '@ns';
+import { NS, ProgramName } from '@ns';
 
 // Logging
 export type LogType = 'info' | 'warning' | 'error' | 'success' | 'fatal';
@@ -27,6 +27,16 @@ export interface Job {
     batchNum: number;
     reportToController: boolean;
 }
+
+// Prep
+export type PrepStrategy = 'grow' | 'weak' | 'both' | 'none';
+
+// Programs
+export interface Program {
+    nsFunc: (host: string) => boolean;
+}
+
+export type AllPrograms = Partial<{ [key in ProgramName]: Program }>;
 
 // NS
 type GetMethods<T, Prefix extends string = ''> =

@@ -1,6 +1,6 @@
 import { NS } from '@ns';
 import { log } from '../logger';
-import { getServers, spawnWorker } from './controllerUtils';
+import { createBatches, doPrep, getServers, spawnWorker } from './controllerUtils';
 import { Job } from '/types';
 import {
     controllerScriptName,
@@ -8,14 +8,10 @@ import {
     securityDecreasePerWeakenThread,
     securityGrowthPerGrowThread,
     securityGrowthPerHackThread,
-    workerActions,
     workerRamCost,
 } from '/utils/constants';
-import { disableLogging } from '/utils/utils';
 import { Metrics } from './metrics';
 import { RamManager } from './ramManager';
-
-let ramManager: RamManager;
 
 export async function main(ns: NS) {
     // If hackController takes the logger port, restart it
@@ -24,49 +20,58 @@ export async function main(ns: NS) {
         ns.kill(ns.pid);
     }
 
-    disableLogging(ns, [
-        'getHackingLevel',
-        'getServerGrowth',
-        'getServerMaxMoney',
-        'getServerMaxRam',
-        'getServerMinSecurityLevel',
-        'getServerMoneyAvailable',
-        'getServerRequiredHackingLevel',
-        'getServerSecurityLevel',
-        'getServerUsedRam',
-        'scp',
-        'ui.clearTerminal',
-        'scan',
-    ]);
+    ns.disableLog('ALL');
+    ns.clearLog();
+    ns.ui.openTail();
+    ns.ui.moveTail(1000, 0);
 
-    // try {
-
-    // } catch (error: unknown) {
-    //     if (error instanceof Error) log(ns, JSON.stringify(error), 'error');
-    // }
-
-    await controlWorkers(ns);
+    try {
+        await controlWorkers(ns);
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            log(ns, error.message, 'error');
+        } else {
+            ns.print(error);
+        }
+    }
 }
 
 async function controlWorkers(ns: NS) {
     while (true) {
-        const port = ns.getPortHandle(ns.pid);
-        port.clear();
+        ns.print('Begin sending shotgun hack.');
+        ns.clearPort(ns.pid);
 
+        ns.print('Fetching server list.');
         const servers = getServers(ns);
 
         // const target = getTarget(serverData);
-        const target = 'n00dles';
+        const target = ns.args[0] as string;
+
+        if (target === undefined) {
+            throw new Error('Missing first argument: target.');
+        }
 
         const metrics = new Metrics(ns, target);
-        ramManager = new RamManager(ns, servers);
+        const ramManager = new RamManager(ns, servers);
 
-        // Do prep
+        if (!metrics.isPrepped) ns.print('Doing prep.');
+        while (!metrics.isPrepped) {
+            await doPrep(ns, target, ramManager);
+            metrics.checkIsPrepped(ns);
+        }
+
+        // Calculations
+        ns.print('Doing calculations for shotgun batch.');
         await optimizeShotgun(ns, metrics, ramManager);
         metrics.calculate(ns);
 
-        const jobs = createBatches(ns, metrics);
+        ns.print('Creating jobs.');
+        const jobs = createBatches(ns, metrics, ramManager);
 
+        // Launch all jobs
+        ns.print(
+            `Launching ${jobs.length / 4} batches (${jobs.length} jobs) at ${metrics.target}.`
+        );
         for (const job of jobs) {
             job.endTime += metrics.cumulativeDelay;
             const workerPid = spawnWorker(ns, job);
@@ -76,51 +81,54 @@ async function controlWorkers(ns: NS) {
             metrics.cumulativeDelay += ns.readPort(workerPid);
         }
 
+        const batchStartTime = Date.now();
+        const moneyToSteal = metrics.currentMoney * metrics.greed;
+        const timer = setInterval(() => {
+            const now = Date.now();
+            const elapsed = now - batchStartTime;
+            const totalDuration = metrics.durations.weaken2 + metrics.endTime;
+
+            const barWidth = 16;
+            const filledBars = Math.floor((elapsed / totalDuration) * barWidth);
+            const emptyBars = barWidth - filledBars;
+            const bar = '|'.repeat(filledBars) + '-'.repeat(emptyBars);
+
+            ns.clearLog();
+            ns.print(`Sending shotgun hack at ${metrics.target}.`);
+            ns.print(
+                `Workers | ${metrics.numOfBatches * 4} workers are deployed, totalling ${metrics.numOfBatches} batches.`
+            );
+            ns.print(
+                `RAM | Using ${ns.format.ram(ramManager.networkTotalRam - ramManager.totalRam)} / ${ns.format.ram(ramManager.availableRam)} on the network.`
+            );
+            ns.print(`Security | ${metrics.currentSecurity} / ${metrics.minimumSecurity}`);
+            ns.print(
+                `Money | ${ns.format.number(metrics.currentMoney)} / ${ns.format.number(metrics.maxMoney)}`
+            );
+            ns.print(
+                `Income | ${ns.format.number(moneyToSteal)} per batch, for a total of ${ns.format.number(moneyToSteal * metrics.numOfBatches)}`
+            );
+            ns.print(
+                `Time remaining: ${ns.format.time(elapsed)} / ${ns.format.time(totalDuration)}`
+            );
+            ns.print(`[${bar}]`);
+        }, 1000);
+
+        ns.atExit(() => clearInterval(timer));
+
         jobs.reverse();
 
+        // Wait for jobs to finish
+        ns.print('Waiting for jobs to complete.');
         do {
-            await port.nextWrite();
-            port.clear();
+            await ns.nextPortWrite(ns.pid);
+            ns.clearPort(ns.pid);
             ramManager.finishJob(jobs.pop() as Job);
         } while (jobs.length > 0);
+
+        ns.print('Shotgun fired!');
+        ns.clearLog();
     }
-}
-
-function createBatches(ns: NS, metrics: Metrics): Job[] {
-    const jobs: Job[] = [];
-
-    for (let i = 0; i < metrics.numOfBatches; i++) {
-        workerActions.forEach(action => {
-            metrics.endTime += metrics.actionBuffer;
-
-            const job = {
-                action: action,
-                threads: metrics.threads[action],
-                target: metrics.target,
-                duration: metrics.durations[action],
-                endTime: metrics.endTime,
-                host: 'ToBeAssignedByRamManager',
-                controllerPort: metrics.controllerPort,
-                ramCost: metrics.workerRam * metrics.threads[action],
-                batchNum: i,
-                reportToController: true,
-            };
-
-            if (!ramManager.assignJob(job)) {
-                throw new Error(`Could not assign ${action} job in network.`);
-            }
-
-            jobs.push(job);
-        });
-    }
-
-    log(
-        ns,
-        `Queuing ${metrics.numOfBatches * workerActions.length} jobs at ${metrics.target}`,
-        'info'
-    );
-
-    return jobs;
 }
 
 async function optimizeShotgun(ns: NS, metrics: Metrics, ramManager: RamManager) {

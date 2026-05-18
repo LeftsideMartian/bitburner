@@ -9,7 +9,7 @@ export const securityGrowthPerHackThread = 0.002;
 export const securityGrowthPerGrowThread = 0.004;
 export const securityDecreasePerWeakenThread = 0.05;
 export const baseScriptRamCost = 1.6;
-export const workerRamCost = 2.05;
+export const workerRamCost = 2.0;
 
 export const purchaseServerPrefix = 'pserv-';
 
@@ -31,6 +31,7 @@ export const controllerScriptName = scriptDirectory + hackControllerDirectory + 
 export const workerScriptName = scriptDirectory + hackControllerDirectory + 'worker.js';
 export const controllerUtilsScriptName =
     scriptDirectory + hackControllerDirectory + 'controllerUtils.js';
+export const shareScriptName = scriptDirectory + 'share.js';
 export const constantsFileName = utilsDirectory + 'constants.js';
 export const programsFileName = utilsDirectory + 'programs.js';
 export const utilsFileName = utilsDirectory + 'utils.js';

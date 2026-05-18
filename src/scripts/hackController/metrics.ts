@@ -1,12 +1,12 @@
 import { NS } from '@ns';
-import { ActionValues } from '/types';
+import { ActionValues, PrepStrategy, WorkerAction } from '/types';
 import {
     securityDecreasePerWeakenThread,
     securityGrowthPerGrowThread,
     securityGrowthPerHackThread,
+    workerActions,
     workerRamCost,
 } from '/utils/constants';
-import { isPrepped } from './controllerUtils';
 
 export class Metrics {
     target: string;
@@ -25,6 +25,8 @@ export class Metrics {
     controllerPort: number;
     workerRam: number;
     actionBuffer: number; // In ms
+    actions: WorkerAction[];
+    prepStrategy: PrepStrategy;
 
     constructor(ns: NS, target: string) {
         this.target = target;
@@ -33,7 +35,7 @@ export class Metrics {
         this.currentMoney = ns.getServerMoneyAvailable(target);
         this.minimumSecurity = ns.getServerMinSecurityLevel(target);
         this.currentSecurity = ns.getServerSecurityLevel(target);
-        this.isPrepped = isPrepped(ns, target);
+        this.isPrepped = this.checkIsPrepped(ns);
 
         this.threads = { hack: 0, weaken1: 0, grow: 0, weaken2: 0 };
         this.durations = { hack: 0, weaken1: 0, grow: 0, weaken2: 0 };
@@ -45,7 +47,9 @@ export class Metrics {
 
         this.controllerPort = ns.pid;
         this.workerRam = workerRamCost;
-        this.actionBuffer = 5;
+        this.actionBuffer = 2;
+        this.actions = workerActions;
+        this.prepStrategy = 'none';
     }
 
     public calculate(ns: NS) {
@@ -99,5 +103,16 @@ export class Metrics {
             grow: growTime,
             weaken2: weakenTime,
         };
+    }
+
+    public checkIsPrepped(ns: NS) {
+        this.isPrepped = this.getIsSecurityPrepped(ns) && this.getIsMoneyPrepped(ns);
+        return this.isPrepped;
+    }
+    public getIsSecurityPrepped(ns: NS) {
+        return ns.getServerSecurityLevel(this.target) <= ns.getServerMinSecurityLevel(this.target);
+    }
+    public getIsMoneyPrepped(ns: NS) {
+        return ns.getServerMoneyAvailable(this.target) >= ns.getServerMaxMoney(this.target);
     }
 }

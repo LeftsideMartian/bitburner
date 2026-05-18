@@ -1,37 +1,20 @@
 import { NS } from '@ns';
+import { AllPrograms } from '/types';
 
-interface Program {
-    exe: string;
-    nsFunc: (host: string) => boolean;
-}
-
-interface AllPrograms {
-    [key: string]: Program;
-}
-
-export const getPrograms: (ns: NS) => AllPrograms = (ns: NS) => ({
-    nuke: {
-        exe: 'NUKE.exe',
-        nsFunc: ns.nuke,
-    },
-    brutessh: {
-        exe: 'BruteSSH.exe',
+export const getPrograms = (ns: NS): AllPrograms => ({
+    'BruteSSH.exe': {
         nsFunc: ns.brutessh,
     },
-    ftpcrack: {
-        exe: 'FTPCrack.exe',
+    'FTPCrack.exe': {
         nsFunc: ns.ftpcrack,
     },
-    relaysmtp: {
-        exe: 'relaySMTP.exe',
+    'relaySMTP.exe': {
         nsFunc: ns.relaysmtp,
     },
-    httpworm: {
-        exe: 'HTTPWorm.exe',
+    'HTTPWorm.exe': {
         nsFunc: ns.httpworm,
     },
-    sqlinject: {
-        exe: 'SQLInject.exe',
+    'SQLInject.exe': {
         nsFunc: ns.sqlinject,
     },
 });

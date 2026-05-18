@@ -2,34 +2,26 @@ import { NS } from '@ns';
 import { ArgError } from '../../errors/argError';
 import { log } from '../logger';
 import { Job } from '/types';
-import { workerRamCost } from '/utils/constants';
 
 export async function main(ns: NS) {
-    ns.ramOverride(workerRamCost);
+    // Args
+    const job: Job = JSON.parse(ns.args[0] as string);
 
     try {
-        await doWork(ns);
+        await doWork(ns, job);
     } catch (error: unknown) {
         if (error instanceof ArgError) {
             log(ns, error.message, 'error');
         } else {
-            log(
-                ns,
-                `Unexpected error in worker.js. Hostname: ${ns.getHostname()}, Script: ${ns.getScriptName()}`,
-                'fatal'
-            );
+            log(ns, `Unexpected error in worker.js. Hostname: ${job.host}.`, 'fatal');
         }
     }
 }
 
-async function doWork(ns: NS) {
-    // Args
-    const job: Job = JSON.parse(ns.args[0] as string);
-
+async function doWork(ns: NS, job: Job) {
     let delay = job.endTime - job.duration - Date.now();
 
     if (delay < 0) {
-        log(ns, `Batch ${job.batchNum} ${job.action} was ${-delay}ms late.`, 'warning');
         ns.writePort(ns.pid, -delay);
         delay = 0;
     } else {
@@ -53,11 +45,5 @@ async function doWork(ns: NS) {
 
     ns.atExit(() => {
         if (job.reportToController) ns.writePort(job.controllerPort, job.action + job.host);
-
-        log(
-            ns,
-            `Batch ${job.batchNum} ${job.action} finished at ${new Date().toLocaleTimeString()}`,
-            'success'
-        );
     });
 }
