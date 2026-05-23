@@ -47,7 +47,7 @@ export class Metrics {
 
         this.controllerPort = ns.pid;
         this.workerRam = workerRamCost;
-        this.actionBuffer = 2;
+        this.actionBuffer = 5;
         this.actions = workerActions;
         this.prepStrategy = 'none';
     }
@@ -56,6 +56,7 @@ export class Metrics {
         this.hackChance = ns.hackAnalyzeChance(this.target);
         this.currentMoney = ns.getServerMoneyAvailable(this.target);
         this.currentSecurity = ns.getServerSecurityLevel(this.target);
+        this.isPrepped = this.checkIsPrepped(ns);
 
         this.calculateThreads(ns);
         this.calculateDurations(ns);

@@ -1,180 +1,110 @@
 import { NS } from '@ns';
-import { scrapeNetwork } from '../spider';
-import {
-    argErrorFileName,
-    constantsFileName,
-    controllerUtilsScriptName,
-    homeNode,
-    loggerScriptName,
-    programsFileName,
-    shareScriptName,
-    spiderScriptName,
-    utilsFileName,
-    workerRamCost,
-    workerScriptName,
-} from '/utils/constants';
-import { getPrograms } from '/utils/programs';
+import { workerRamCost, workerScriptName } from '/utils/constants';
 import { Job } from '/types';
 import { Metrics } from './metrics';
 import { RamManager } from './ramManager';
+import { getServers } from '/utils/utils';
 
-export function getServers(ns: NS): string[] {
-    const servers = scrapeNetwork(ns);
-
-    return servers.filter(server => {
-        const hasRootAccess = getRootAccess(ns, server);
-        if (hasRootAccess) {
-            deployAllScripts(ns, server);
-            return true;
-        }
-        return false;
-    });
-}
-
-export function deployAllScripts(ns: NS, server: string) {
-    const fileNames = [
-        loggerScriptName,
-        workerScriptName,
-        constantsFileName,
-        programsFileName,
-        utilsFileName,
-        argErrorFileName,
-        spiderScriptName,
-        controllerUtilsScriptName,
-        shareScriptName,
-    ];
-
-    fileNames.forEach(file => {
-        if (ns.fileExists(file)) {
-            ns.rm(file, server);
-        }
-
-        ns.scp(file, server);
-    });
-}
-
-function getRootAccess(ns: NS, node: string): boolean {
-    if (ns.hasRootAccess(node)) {
-        return true;
-    }
-
-    const isHackingLevelHighEnough = ns.getHackingLevel() >= ns.getServerRequiredHackingLevel(node);
-
-    if (!isHackingLevelHighEnough) {
-        return false;
-    }
-
-    let ports = 0;
-
-    // Attempt to run all programs
-    Object.entries(getPrograms(ns)).forEach(([fileName, program]) => {
-        if (ns.fileExists(fileName, homeNode)) {
-            program.nsFunc(node);
-            ports++;
-        }
-    });
-
-    const areEnoughPortsOpen = ports >= ns.getServerNumPortsRequired(node);
-
-    // Ensure all hackable servers have root access
-    if (areEnoughPortsOpen) {
-        return ns.nuke(node);
-    } else {
-        return false;
-    }
-}
-
-export async function doPrep(ns: NS, target: string, ramManager: RamManager) {
-    getServers(ns);
+export async function doPrep(ns: NS, target: string) {
+    const servers = getServers(ns);
     ns.clearPort(ns.pid);
 
+    const ramManager = new RamManager(ns, servers);
     const metrics = new Metrics(ns, target);
-
-    // Calculations
     metrics.calculate(ns);
 
-    const growPercentage = !metrics.getIsSecurityPrepped(ns) ? 0.3 : 0.6;
-    if (!metrics.getIsSecurityPrepped(ns) || !metrics.getIsMoneyPrepped(ns)) {
-        const totalThreads = ramManager.availablePrepThreads;
-        const maxThreadsPerJob = Math.floor(ramManager.maxAvailableRam / workerRamCost);
-        let bestNumBatches = 1;
-        const initialGrow = Math.floor(totalThreads * growPercentage);
-        const initialWeaken = totalThreads - initialGrow;
-        let bestGrowPerBatch = Math.min(initialGrow, maxThreadsPerJob);
-        let bestWeakenPerBatch = Math.min(initialWeaken, maxThreadsPerJob);
-
-        // Try increasing number of batches to maximize utilization
-        for (let numBatches = 1; numBatches <= 100; numBatches++) {
-            const growPerBatch = Math.floor((totalThreads * growPercentage) / numBatches);
-            const weakenPerBatch = Math.floor((totalThreads * (1 - growPercentage)) / numBatches);
-
-            // Skip if batch is too small or individual jobs exceed server capacity
-            if (
-                growPerBatch === 0 ||
-                weakenPerBatch === 0 ||
-                growPerBatch > maxThreadsPerJob ||
-                weakenPerBatch > maxThreadsPerJob
-            )
-                break;
-
-            // Check if this batch configuration fits in the network
-            const fittingBatches = ramManager.tryAllocateBatches({
-                hack: 0,
-                weaken1: 0,
-                grow: growPerBatch * workerRamCost,
-                weaken2: weakenPerBatch * workerRamCost,
-            });
-
-            if (fittingBatches >= numBatches) {
-                bestNumBatches = numBatches;
-                bestGrowPerBatch = growPerBatch;
-                bestWeakenPerBatch = weakenPerBatch;
-            }
-        }
-
-        metrics.threads = {
-            hack: 0,
-            weaken1: 0,
-            grow: bestGrowPerBatch,
-            weaken2: bestWeakenPerBatch,
-        };
-        metrics.numOfBatches = bestNumBatches;
-    } else {
+    if (metrics.isPrepped) {
         return;
     }
 
-    metrics.actions = ['grow', 'weaken2'];
+    const growPercentage = !metrics.getIsSecurityPrepped(ns) ? 0.3 : 0.6;
 
-    const jobs = createBatches(ns, metrics, ramManager);
+    // Allocate variable-sized jobs across servers to maximize utilization
+    const jobs: Job[] = [];
+    let endTime = 0;
+    let batchNum = 0;
+
+    // For each server, create jobs that fit its capacity
+    for (const server of ramManager.servers) {
+        const maxThreadsForServer = Math.floor(server.availableRam / workerRamCost);
+
+        if (maxThreadsForServer < 1) continue; // Skip if server too small
+
+        // Calculate thread split for this server
+        const growThreads = Math.floor(maxThreadsForServer * growPercentage);
+        const weakenThreads = Math.floor(maxThreadsForServer * (1 - growPercentage));
+
+        if (growThreads < 1 || weakenThreads < 1) continue; // Skip if split results in 0 threads
+
+        endTime += metrics.actionBuffer;
+
+        // Create grow job for this server
+        const growJob: Job = {
+            action: 'grow',
+            threads: growThreads,
+            target: target,
+            duration: metrics.durations.grow,
+            endTime: endTime,
+            host: server.hostName,
+            controllerPort: metrics.controllerPort,
+            ramCost: growThreads * workerRamCost,
+            batchNum: batchNum,
+            reportToController: true,
+        };
+
+        endTime += metrics.actionBuffer;
+
+        // Create weaken job for this server
+        const weakenJob: Job = {
+            action: 'weaken2',
+            threads: weakenThreads,
+            target: target,
+            duration: metrics.durations.weaken2,
+            endTime: endTime,
+            host: server.hostName,
+            controllerPort: metrics.controllerPort,
+            ramCost: weakenThreads * workerRamCost,
+            batchNum: batchNum,
+            reportToController: true,
+        };
+
+        jobs.push(growJob);
+        jobs.push(weakenJob);
+        batchNum++;
+    }
+
+    if (jobs.length === 0) return; // No jobs to allocate
 
     // Launch all jobs
     for (const job of jobs) {
-        job.endTime += metrics.cumulativeDelay;
         const workerPid = spawnWorker(ns, job);
         if (!workerPid) throw new Error(`Unable to deploy ${job.action} to ${job.host}`);
 
         await ns.nextPortWrite(workerPid);
-        metrics.cumulativeDelay += ns.readPort(workerPid);
+        ns.readPort(workerPid);
     }
 
     const prepStartTime = Date.now();
+    const maxDuration = Math.max(...jobs.map(j => j.endTime)) + metrics.durations.weaken2;
+
     const timer = setInterval(() => {
         const now = Date.now();
         const elapsed = now - prepStartTime;
-        const totalDuration = metrics.durations.weaken2 + metrics.endTime;
 
         const barWidth = 16;
-        const filledBars = Math.floor((elapsed / totalDuration) * barWidth);
+        const filledBars = Math.floor((elapsed / maxDuration) * barWidth);
         const emptyBars = barWidth - filledBars;
         const bar = '|'.repeat(filledBars) + '-'.repeat(emptyBars);
 
         ns.clearLog();
-        ns.print(`Doing prep on ${metrics.target}.`);
-        ns.print(`Security | ${metrics.currentSecurity} / ${metrics.minimumSecurity}`);
+        ns.print(`Doing prep on ${target}.`);
         ns.print(
-            `Money | ${ns.format.number(metrics.currentMoney)} / ${ns.format.number(metrics.maxMoney)}`
+            `Security | ${ns.getServerSecurityLevel(target).toFixed(2)} / ${ns.getServerMinSecurityLevel(target).toFixed(2)}`
         );
-        ns.print(`Time remaining: ${ns.format.time(elapsed)} / ${ns.format.time(totalDuration)}`);
+        ns.print(
+            `Money | ${ns.format.number(ns.getServerMoneyAvailable(target))} / ${ns.format.number(ns.getServerMaxMoney(target))}`
+        );
+        ns.print(`Time remaining: ${ns.format.time(elapsed)} / ${ns.format.time(maxDuration)}`);
         ns.print(`[${bar}]`);
     }, 1000);
 
@@ -186,7 +116,7 @@ export async function doPrep(ns: NS, target: string, ramManager: RamManager) {
     do {
         await ns.nextPortWrite(ns.pid);
         ns.clearPort(ns.pid);
-        ramManager.finishJob(jobs.pop() as Job);
+        jobs.pop();
     } while (jobs.length > 0);
 
     clearInterval(timer);

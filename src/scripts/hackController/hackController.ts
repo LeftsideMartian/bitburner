@@ -1,9 +1,11 @@
 import { NS } from '@ns';
 import { log } from '../logger';
-import { createBatches, doPrep, getServers, spawnWorker } from './controllerUtils';
+import { createBatches, doPrep, spawnWorker } from './controllerUtils';
 import { Job } from '/types';
 import {
     controllerScriptName,
+    homeNode,
+    killAllScriptName,
     loggerPortNumber,
     securityDecreasePerWeakenThread,
     securityGrowthPerGrowThread,
@@ -12,18 +14,22 @@ import {
 } from '/utils/constants';
 import { Metrics } from './metrics';
 import { RamManager } from './ramManager';
+import { getServers } from '/utils/utils';
 
 export async function main(ns: NS) {
-    // If hackController takes the logger port, restart it
-    if (ns.pid === loggerPortNumber) {
-        ns.run(controllerScriptName);
-        ns.kill(ns.pid);
-    }
-
     ns.disableLog('ALL');
     ns.clearLog();
     ns.ui.openTail();
-    ns.ui.moveTail(1000, 0);
+    ns.ui.setTailMinimized(true);
+    ns.ui.moveTail(600, 0);
+
+    // If hackController takes the logger port, restart it
+    if (ns.pid === loggerPortNumber) {
+        ns.atExit(() => ns.run(controllerScriptName), 'restart');
+        ns.exit();
+    }
+
+    ns.atExit(() => ns.ui.closeTail(), 'ui');
 
     try {
         await controlWorkers(ns);
@@ -38,10 +44,8 @@ export async function main(ns: NS) {
 
 async function controlWorkers(ns: NS) {
     while (true) {
-        ns.print('Begin sending shotgun hack.');
         ns.clearPort(ns.pid);
 
-        ns.print('Fetching server list.');
         const servers = getServers(ns);
 
         // const target = getTarget(serverData);
@@ -54,24 +58,18 @@ async function controlWorkers(ns: NS) {
         const metrics = new Metrics(ns, target);
         const ramManager = new RamManager(ns, servers);
 
-        if (!metrics.isPrepped) ns.print('Doing prep.');
         while (!metrics.isPrepped) {
-            await doPrep(ns, target, ramManager);
+            await doPrep(ns, target);
             metrics.checkIsPrepped(ns);
         }
 
         // Calculations
-        ns.print('Doing calculations for shotgun batch.');
         await optimizeShotgun(ns, metrics, ramManager);
         metrics.calculate(ns);
 
-        ns.print('Creating jobs.');
         const jobs = createBatches(ns, metrics, ramManager);
 
         // Launch all jobs
-        ns.print(
-            `Launching ${jobs.length / 4} batches (${jobs.length} jobs) at ${metrics.target}.`
-        );
         for (const job of jobs) {
             job.endTime += metrics.cumulativeDelay;
             const workerPid = spawnWorker(ns, job);
@@ -80,6 +78,10 @@ async function controlWorkers(ns: NS) {
             await ns.nextPortWrite(workerPid);
             metrics.cumulativeDelay += ns.readPort(workerPid);
         }
+
+        // Kill jobs if controller dies
+        // TODO: Possibly replace this with a more specific "kill workers" script to avoid interfering with other network scripts
+        ns.atExit(() => ns.run(killAllScriptName), 'killWorkers');
 
         const batchStartTime = Date.now();
         const moneyToSteal = metrics.currentMoney * metrics.greed;
@@ -101,7 +103,9 @@ async function controlWorkers(ns: NS) {
             ns.print(
                 `RAM | Using ${ns.format.ram(ramManager.networkTotalRam - ramManager.totalRam)} / ${ns.format.ram(ramManager.availableRam)} on the network.`
             );
-            ns.print(`Security | ${metrics.currentSecurity} / ${metrics.minimumSecurity}`);
+            ns.print(
+                `Security | ${metrics.currentSecurity.toFixed(2)} / ${metrics.minimumSecurity.toFixed(2)}`
+            );
             ns.print(
                 `Money | ${ns.format.number(metrics.currentMoney)} / ${ns.format.number(metrics.maxMoney)}`
             );
@@ -114,7 +118,7 @@ async function controlWorkers(ns: NS) {
             ns.print(`[${bar}]`);
         }, 1000);
 
-        ns.atExit(() => clearInterval(timer));
+        ns.atExit(() => clearInterval(timer), 'timer');
 
         jobs.reverse();
 

@@ -1,6 +1,6 @@
 import { NS } from '@ns';
-import { getServers } from './hackController/controllerUtils';
 import { homeNode, shareScriptName } from '/utils/constants';
+import { getServers } from '/utils/utils';
 
 export async function main(ns: NS) {
     const servers = getServers(ns);

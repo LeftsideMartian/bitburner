@@ -52,5 +52,6 @@ export function scrapeNetwork(ns: NS): string[] {
         results.push(...scanResults);
     }
 
-    return [...new Set(results.filter(node => node !== homeNode))];
+    return [...new Set(results)];
+    // .filter(node => node !== homeNode)
 }

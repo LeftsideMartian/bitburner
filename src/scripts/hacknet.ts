@@ -8,7 +8,7 @@ export async function main(ns: NS) {
 export async function manageHacknet(ns: NS) {
     const hacknet = ns.hacknet;
 
-    const purchaseThreshold = 3; // Number of e's to set the purchase limit
+    const purchaseThreshold = 4; // Number of e's to set the purchase limit
     const purchaseLimit = 10 ** purchaseThreshold;
     const sleepDuration = 1000; // in MS
 

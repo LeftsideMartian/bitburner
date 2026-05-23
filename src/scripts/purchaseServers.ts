@@ -1,11 +1,15 @@
 import { NS } from '@ns';
 import { homeNode, purchaseServerPrefix } from '/utils/constants';
 
-const purchaseThreshold = 2; // Number of e's for which to set the purchase limit
+let purchaseThreshold = 0; // Number of e's for which to set the purchase limit
 const purchaseLimit = 10 ** purchaseThreshold;
 
 export async function main(ns: NS) {
     ns.disableLog('ALL');
+
+    if (typeof ns.args[0] === 'number') {
+        purchaseThreshold = ns.args[0];
+    }
 
     while (true) {
         managePurchaseServers(ns);
@@ -23,11 +27,11 @@ function buyNewServers(ns: NS) {
 
     // const ramLimit = cloud.getRamLimit();
     // const ramToBuy = getTargetRam(ns, ramLimit);
-    const ramToBuy = 8; // Setting static value for now
+    const ramToBuy = 2;
     const maxServers = cloud.getServerLimit(); // Max is 25 for now ig
     let numOfPurchaseServers = cloud.getServerNames().length;
 
-    const currentMoney = ns.getServerMoneyAvailable(homeNode);
+    let currentMoney = ns.getServerMoneyAvailable(homeNode);
 
     // Purchase new servers
     while (
@@ -39,6 +43,7 @@ function buyNewServers(ns: NS) {
 
         ns.print(`Buying new server named ${newServerName} with ${ramToBuy}GB of RAM.`);
         cloud.purchaseServer(newServerName, ramToBuy);
+        currentMoney = ns.getServerMoneyAvailable(homeNode);
     }
 }
 

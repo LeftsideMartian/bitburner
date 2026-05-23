@@ -1,4 +1,4 @@
-import { NS, ProgramName } from '@ns';
+import { NS, ProgramName, ScriptArg } from '@ns';
 
 // Logging
 export type LogType = 'info' | 'warning' | 'error' | 'success' | 'fatal';
@@ -38,28 +38,9 @@ export interface Program {
 
 export type AllPrograms = Partial<{ [key in ProgramName]: Program }>;
 
-// NS
-type GetMethods<T, Prefix extends string = ''> =
-    | {
-          [K in keyof T]: K extends string
-              ? T[K] extends (...args: any[]) => any
-                  ? Prefix extends ''
-                      ? K
-                      : `${Prefix}.${K}`
-                  : never
-              : never;
-      }[keyof T]
-    | {
-          [K in keyof T]: K extends string
-              ? Exclude<T[K], undefined | null> extends object
-                  ? Exclude<T[K], undefined | null> extends (...args: any[]) => any
-                      ? never
-                      : GetMethods<
-                            Exclude<T[K], undefined | null>,
-                            Prefix extends '' ? K : `${Prefix}.${K}`
-                        >
-                  : never
-              : never;
-      }[keyof T];
-
-export type NSMethods = GetMethods<NS>;
+export interface ScriptConfig {
+    scriptName: string;
+    threads?: number;
+    args?: ScriptArg[];
+    enabled: boolean;
+}
