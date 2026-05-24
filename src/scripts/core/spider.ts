@@ -1,5 +1,5 @@
 import { NS } from '@ns';
-import { homeNode, serversFileName } from '../utils/constants';
+import { homeNode, serversFileName } from '/utils/constants';
 
 type SpiderMode = 'single' | 'loop' | undefined;
 

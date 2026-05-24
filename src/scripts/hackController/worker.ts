@@ -1,6 +1,6 @@
 import { NS } from '@ns';
-import { ArgError } from '../../errors/argError';
-import { log } from '../logger';
+import { ArgError } from '/errors/argError';
+import { log } from '/scripts/core/logger';
 import { Job } from '/types';
 
 export async function main(ns: NS) {

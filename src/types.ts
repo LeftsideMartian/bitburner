@@ -1,4 +1,4 @@
-import { NS, ProgramName, ScriptArg } from '@ns';
+import { EquipmentStats, GangTaskStats, ProgramName, ScriptArg } from '@ns';
 
 // Logging
 export type LogType = 'info' | 'warning' | 'error' | 'success' | 'fatal';
@@ -7,6 +7,16 @@ export interface Log {
     message: string;
     type: LogType;
 }
+
+// Alias
+export interface AliasConfig {
+    script: string;
+    args?: string[];
+    prefix?: string;
+    suffix?: string;
+}
+
+export type Aliases = Record<string, AliasConfig>;
 
 // Worker
 export type WorkerAction = 'hack' | 'weaken1' | 'grow' | 'weaken2';
@@ -44,3 +54,29 @@ export interface ScriptConfig {
     args?: ScriptArg[];
     enabled: boolean;
 }
+
+// Gang
+export const validStrategies = ['income', 'respect'] as const;
+export type GangTaskStrategy = (typeof validStrategies)[number];
+
+export interface TaskTypes {
+    income: GangTaskStats[];
+    training: GangTaskStats[];
+    unassigned: GangTaskStats;
+    respect: GangTaskStats;
+    wanted: GangTaskStats;
+    territory: GangTaskStats;
+}
+
+export type EquipmentType = 'weapon' | 'armor' | 'vehicle' | 'rootkit' | 'augmentation';
+
+export interface Equipment {
+    name: string;
+    type: EquipmentType;
+    stats: EquipmentStats;
+    cost: number;
+}
+
+export type EquipmentTypes = {
+    [key in EquipmentType]: Equipment[];
+};

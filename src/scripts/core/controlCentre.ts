@@ -4,12 +4,13 @@ import {
     configFileName,
     controlCentreScriptName,
     controllerScriptName,
+    gangScriptName,
     hacknetScriptName,
     homeNode,
     killAllScriptName,
     loggerScriptName,
     purchaseServerScriptName,
-} from '../utils/constants';
+} from '/utils/constants';
 import { ScriptConfig } from '/types';
 import { readControlCentreConfig, writeConfigFile } from '/utils/utils';
 
@@ -50,6 +51,11 @@ async function controlCentre(ns: NS) {
             args: [1],
             enabled: true,
         },
+        {
+            scriptName: gangScriptName,
+            args: [1, 'respect'],
+            enabled: true,
+        },
     ];
     let newConfig: ScriptConfig[] = currentConfig;
 
@@ -63,6 +69,7 @@ async function controlCentre(ns: NS) {
     }, 'killScripts');
 
     while (true) {
+        debugger;
         // Check if another control centre is running with a different PID
         const currentControlCentre = ns.getRunningScript(controlCentreScriptName);
         if (currentControlCentre && currentControlCentre.pid !== ns.pid) {

@@ -1,10 +1,9 @@
 import { NS } from '@ns';
-import { log } from '../logger';
+import { log } from '../core/logger';
 import { createBatches, doPrep, spawnWorker } from './controllerUtils';
 import { Job } from '/types';
 import {
     controllerScriptName,
-    homeNode,
     killAllScriptName,
     loggerPortNumber,
     securityDecreasePerWeakenThread,

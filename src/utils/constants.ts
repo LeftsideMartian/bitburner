@@ -12,9 +12,13 @@ export const baseScriptRamCost = 1.6;
 export const workerRamCost = 2.0;
 
 export const purchaseServerPrefix = 'pserv-';
+export const gangMemberPrefix = 'member-';
 
 // __________Directories__________
 const scriptDirectory = 'scripts/';
+const coreDirectory = 'core/';
+const shareDirectory = 'share/';
+const gangDirectory = 'gang/';
 const txtFileDirectory = 'txt/';
 const hackControllerDirectory = 'hackController/';
 const errorsDirectory = 'errors/';
@@ -25,20 +29,36 @@ export const serversFileName = txtFileDirectory + 'servers.txt';
 export const configFileName = txtFileDirectory + 'config.txt';
 
 // __________Script names__________
-export const spiderScriptName = scriptDirectory + 'spider.js';
-export const hacknetScriptName = scriptDirectory + 'hacknet.js';
-export const purchaseServerScriptName = scriptDirectory + 'purchaseServers.js';
-export const loggerScriptName = scriptDirectory + 'logger.js';
-export const controllerScriptName = scriptDirectory + hackControllerDirectory + 'hackController.js';
-export const workerScriptName = scriptDirectory + hackControllerDirectory + 'worker.js';
+// Core
+export const allServersScriptName = scriptDirectory + coreDirectory + 'allServers.js';
+export const controlCentreScriptName = scriptDirectory + coreDirectory + 'controlCentre.js';
+export const findServerScriptName = scriptDirectory + coreDirectory + 'findServer.js';
+export const hacknetScriptName = scriptDirectory + coreDirectory + 'hacknet.js';
+export const killAllScriptName = scriptDirectory + coreDirectory + 'killExternalScripts.js';
+export const loggerScriptName = scriptDirectory + coreDirectory + 'logger.js';
+export const purchaseServerScriptName = scriptDirectory + coreDirectory + 'purchaseServers.js';
+export const spiderScriptName = scriptDirectory + coreDirectory + 'spider.js';
+export const xpJoesGunsScriptName = scriptDirectory + coreDirectory + 'xpJoesGuns.js';
+
+// Hack controller
 export const controllerUtilsScriptName =
     scriptDirectory + hackControllerDirectory + 'controllerUtils.js';
-export const controlCentreScriptName = scriptDirectory + 'controlCentre.js';
-export const shareScriptName = scriptDirectory + 'share.js';
-export const killAllScriptName = scriptDirectory + 'killExternalScripts.js';
+export const controllerScriptName = scriptDirectory + hackControllerDirectory + 'hackController.js';
+export const workerScriptName = scriptDirectory + hackControllerDirectory + 'worker.js';
+
+// Share
+export const shareScriptName = scriptDirectory + shareDirectory + 'share.js';
+export const shareNetworkScriptName = scriptDirectory + shareDirectory + 'shareNetwork.js';
+
+// Gang
+export const gangScriptName = scriptDirectory + gangDirectory + 'gang.js';
+
+// Utils
 export const constantsFileName = utilsDirectory + 'constants.js';
 export const programsFileName = utilsDirectory + 'programs.js';
 export const utilsFileName = utilsDirectory + 'utils.js';
+
+// Errors
 export const argErrorFileName = errorsDirectory + 'argError.js';
 
 // __________Ports__________

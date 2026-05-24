@@ -12,7 +12,7 @@ import {
     workerScriptName,
 } from './constants';
 import { getPrograms } from './programs';
-import { scrapeNetwork } from '/scripts/spider';
+import { scrapeNetwork } from '/scripts/core/spider';
 
 export function getServers(ns: NS): string[] {
     const servers = scrapeNetwork(ns).filter(server => server !== homeNode);

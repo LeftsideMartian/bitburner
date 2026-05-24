@@ -1,5 +1,5 @@
 import { NS } from '@ns';
-import { homeNode } from '../utils/constants';
+import { homeNode } from '/utils/constants';
 
 export async function main(ns: NS) {
     await manageHacknet(ns);
